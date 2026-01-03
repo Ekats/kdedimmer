@@ -9,7 +9,7 @@ license=('GPL-3.0-or-later')
 depends=('qt6-base' 'qt6-wayland' 'layer-shell-qt' 'wayland')
 makedepends=('cmake')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('a33dce81d8f831208c9b03a1c2e4a86801e17bc8491c68f7502520c21308a907')
 
 build() {
     cd "$pkgname-$pkgver"

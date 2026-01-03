@@ -11,6 +11,6 @@ pkgbase = kdedimmer
 	depends = layer-shell-qt
 	depends = wayland
 	source = kdedimmer-1.0.0.tar.gz::https://github.com/Ekats/kdedimmer/archive/v1.0.0.tar.gz
-	sha256sums = SKIP
+	sha256sums = a33dce81d8f831208c9b03a1c2e4a86801e17bc8491c68f7502520c21308a907
 
 pkgname = kdedimmer
