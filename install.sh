@@ -13,7 +13,7 @@ cp build/kdedimmer ~/.local/bin/
 
 echo "Installing systemd user service..."
 mkdir -p ~/.config/systemd/user
-cp kdedimmer.service ~/.config/systemd/user/
+sed 's|/usr/bin/kdedimmer|'"$HOME"'/.local/bin/kdedimmer|' kdedimmer.service > ~/.config/systemd/user/kdedimmer.service
 
 echo "Reloading systemd and enabling service..."
 systemctl --user daemon-reload

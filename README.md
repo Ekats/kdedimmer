@@ -24,6 +24,21 @@ sudo pacman -S qt6-base qt6-wayland layer-shell-qt wayland
 
 ## Installation
 
+### From AUR (Arch Linux)
+
+```bash
+yay -S kdedimmer
+# or
+paru -S kdedimmer
+```
+
+Then enable the service:
+```bash
+systemctl --user enable --now kdedimmer
+```
+
+### From Source
+
 ```bash
 ./install.sh
 ```
