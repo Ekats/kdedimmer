@@ -31,7 +31,9 @@ public:
     DimOverlay(QWidget *parent = nullptr) : QWidget(parent), m_opacity(50) {
         setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
         setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_NoSystemBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
+        setAutoFillBackground(false);
     }
 
     void setDimOpacity(int opacity) {
@@ -44,6 +46,7 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter p(this);
+        p.setCompositionMode(QPainter::CompositionMode_Source);
         p.fillRect(rect(), QColor(0, 0, 0, m_opacity * 255 / 100));
     }
 
