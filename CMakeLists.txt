@@ -7,6 +7,7 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Gui WaylandClient DBus)
 find_package(LayerShellQt REQUIRED)
+find_package(KF6StatusNotifierItem REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(WAYLAND REQUIRED wayland-client)
 
@@ -26,6 +27,7 @@ target_link_libraries(kdedimmer
     Qt6::WaylandClient
     Qt6::DBus
     LayerShellQt::Interface
+    KF6::StatusNotifierItem
     ${WAYLAND_LIBRARIES}
 )
 

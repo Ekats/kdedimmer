@@ -2,10 +2,10 @@
 #include <QWidget>
 #include <QPainter>
 #include <QScreen>
-#include <QSystemTrayIcon>
+#include <KStatusNotifierItem>
 #include <QMenu>
 #include <QSlider>
-#include <QWidgetAction>
+#include <QMouseEvent>
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -14,6 +14,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QCommandLineParser>
+#include <QTimer>
 
 #include <LayerShellQt/Shell>
 #include <LayerShellQt/Window>
@@ -53,6 +54,8 @@ protected:
     void showEvent(QShowEvent *event) override {
         QWidget::showEvent(event);
         configureLayerShell();
+        // Re-apply after surface is fully ready (Wayland resets input region on remap)
+        QTimer::singleShot(50, this, &DimOverlay::configureLayerShell);
     }
 
 private:
@@ -93,6 +96,92 @@ private:
     int m_opacity;
 };
 
+class SliderPopup : public QWidget {
+    Q_OBJECT
+public:
+    SliderPopup(QWidget *parent = nullptr) : QWidget(parent) {
+        setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setFixedSize(220, 50);
+
+        auto *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(8, 8, 8, 8);
+
+        m_slider = new QSlider(Qt::Horizontal);
+        m_slider->setRange(0, 90);
+        m_slider->setValue(50);
+        m_slider->setMinimumWidth(120);
+
+        m_valueLabel = new QLabel("50%");
+        m_valueLabel->setMinimumWidth(35);
+
+        layout->addWidget(new QLabel("Dim:"));
+        layout->addWidget(m_slider);
+        layout->addWidget(m_valueLabel);
+    }
+
+    void showOnScreen(const QPoint &pos) {
+        // Find screen from SNI click coordinates
+        m_screen = nullptr;
+        for (auto *s : QGuiApplication::screens()) {
+            QRect geo = s->geometry();
+            qreal dpr = s->devicePixelRatio();
+            QRect phys(geo.x(), geo.y(),
+                       (int)(geo.width() * dpr), (int)(geo.height() * dpr));
+            if (phys.contains(pos)) {
+                m_screen = s;
+                break;
+            }
+        }
+        if (!m_screen) m_screen = QGuiApplication::primaryScreen();
+
+        if (isVisible()) {
+            hide();
+        } else {
+            show();
+            raise();
+        }
+    }
+
+    QSlider *slider() { return m_slider; }
+    QLabel *valueLabel() { return m_valueLabel; }
+
+protected:
+    void showEvent(QShowEvent *event) override {
+        QWidget::showEvent(event);
+        configureLayerShell();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        if (!m_slider->geometry().contains(event->pos())) {
+            hide();
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+private:
+    void configureLayerShell() {
+        auto *window = windowHandle();
+        if (!window) return;
+        auto *lsh = LayerShellQt::Window::get(window);
+        if (!lsh) return;
+
+        lsh->setLayer(LayerShellQt::Window::LayerOverlay);
+        lsh->setAnchors(LayerShellQt::Window::Anchors(
+            LayerShellQt::Window::AnchorBottom | LayerShellQt::Window::AnchorRight));
+        lsh->setExclusiveZone(0);
+        lsh->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+
+        lsh->setMargins(QMargins(0, 0, 8, 48));
+        if (m_screen)
+            window->setScreen(m_screen);
+    }
+
+    QSlider *m_slider;
+    QLabel *m_valueLabel;
+    QScreen *m_screen = nullptr;
+};
+
 class TrayController : public QObject {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", DBUS_INTERFACE)
@@ -101,56 +190,47 @@ public:
     TrayController(QList<DimOverlay*> overlays, QObject *parent = nullptr)
         : QObject(parent), m_overlays(overlays), m_enabled(true), m_opacity(50) {
 
-        m_tray = new QSystemTrayIcon(this);
-        m_tray->setIcon(QIcon::fromTheme("brightness-low",
-            QIcon::fromTheme("video-display")));
-        m_tray->setToolTip(QString("Screen Dimmer (%1 monitors)").arg(overlays.size()));
+        m_popup = new SliderPopup();
+        m_slider = m_popup->slider();
+        m_valueLabel = m_popup->valueLabel();
 
+        m_sni = new KStatusNotifierItem(this);
+        m_sni->setIconByName("brightness-low");
+        m_sni->setToolTipTitle("Screen Dimmer");
+        m_sni->setToolTipSubTitle(QString("%1 monitors").arg(overlays.size()));
+        m_sni->setCategory(KStatusNotifierItem::SystemServices);
+        m_sni->setStatus(KStatusNotifierItem::Active);
+
+        // Right-click menu (rendered natively by KDE via DBusMenu)
         auto *menu = new QMenu();
-
-        // Slider widget
-        auto *sliderWidget = new QWidget();
-        auto *sliderLayout = new QHBoxLayout(sliderWidget);
-        sliderLayout->setContentsMargins(8, 4, 8, 4);
-
-        auto *label = new QLabel("Dim:");
-        m_slider = new QSlider(Qt::Horizontal);
-        m_slider->setRange(0, 90);
-        m_slider->setValue(overlays.first()->dimOpacity());
-        m_slider->setMinimumWidth(120);
-
-        m_valueLabel = new QLabel(QString("%1%").arg(overlays.first()->dimOpacity()));
-        m_valueLabel->setMinimumWidth(35);
-
-        sliderLayout->addWidget(label);
-        sliderLayout->addWidget(m_slider);
-        sliderLayout->addWidget(m_valueLabel);
-
-        auto *sliderAction = new QWidgetAction(menu);
-        sliderAction->setDefaultWidget(sliderWidget);
-        menu->addAction(sliderAction);
-
-        menu->addSeparator();
-
         m_toggleAction = menu->addAction("Enabled");
         m_toggleAction->setCheckable(true);
         m_toggleAction->setChecked(true);
+        m_sni->setContextMenu(menu);
 
-        menu->addSeparator();
-        menu->addAction("Quit", qApp, &QApplication::quit);
+        // Left-click: show slider popup (pos comes from KDE panel via D-Bus)
+        connect(m_sni, &KStatusNotifierItem::activateRequested, this,
+            [this](bool, const QPoint &pos) {
+                m_popup->showOnScreen(pos);
+            });
 
-        m_tray->setContextMenu(menu);
+        // Middle-click: toggle
+        connect(m_sni, &KStatusNotifierItem::secondaryActivateRequested, this,
+            [this](const QPoint &) { m_toggleAction->toggle(); });
+
+        // Scroll: adjust opacity (scroll up = less dim)
+        connect(m_sni, &KStatusNotifierItem::scrollRequested, this,
+            [this](int delta, Qt::Orientation) {
+                AdjustOpacity(delta > 0 ? -5 : 5);
+            });
 
         connect(m_slider, &QSlider::valueChanged, this, &TrayController::onSliderChanged);
         connect(m_toggleAction, &QAction::toggled, this, &TrayController::onToggle);
-        connect(m_tray, &QSystemTrayIcon::activated, this, &TrayController::onActivated);
 
         // Register D-Bus service
         auto bus = QDBusConnection::sessionBus();
         bus.registerObject(DBUS_PATH, this, QDBusConnection::ExportAllSlots);
         bus.registerService(DBUS_SERVICE);
-
-        m_tray->show();
     }
 
 public slots:
@@ -202,16 +282,10 @@ private slots:
         }
     }
 
-    void onActivated(QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::MiddleClick ||
-            reason == QSystemTrayIcon::Trigger) {
-            m_toggleAction->toggle();
-        }
-    }
-
 private:
     QList<DimOverlay*> m_overlays;
-    QSystemTrayIcon *m_tray;
+    KStatusNotifierItem *m_sni;
+    SliderPopup *m_popup;
     QSlider *m_slider;
     QLabel *m_valueLabel;
     QAction *m_toggleAction;

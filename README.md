@@ -14,12 +14,18 @@ A click-through screen dimmer overlay for KDE Plasma Wayland. Adds a transparent
 ## Dependencies
 
 - Qt 6 (Widgets, Gui, DBus, WaylandClient)
+- KF6 StatusNotifierItem
 - layer-shell-qt
 - wayland-client
 
 Arch Linux:
 ```bash
-sudo pacman -S qt6-base qt6-wayland layer-shell-qt wayland
+sudo pacman -S qt6-base qt6-wayland layer-shell-qt wayland kstatusnotifieritem
+```
+
+Debian/Ubuntu:
+```bash
+sudo apt install qt6-base-dev qt6-base-private-dev qt6-wayland-dev liblayershellqtinterface-dev libkf6statusnotifieritem-dev libwayland-dev cmake
 ```
 
 ## Installation
@@ -52,8 +58,10 @@ This will:
 ## Usage
 
 ### System Tray
-- Right-click tray icon for slider (0-90% opacity)
-- Left/middle-click to toggle on/off
+- Left-click tray icon for slider popup (0-90% opacity)
+- Scroll wheel over tray icon to adjust (up = less dim, down = more dim)
+- Right-click for menu (toggle, quit)
+- Middle-click to toggle on/off
 
 ### CLI Commands
 
