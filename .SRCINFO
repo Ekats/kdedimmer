@@ -12,6 +12,6 @@ pkgbase = kdedimmer
 	depends = wayland
 	depends = kstatusnotifieritem
 	source = kdedimmer-1.1.0.tar.gz::https://github.com/Ekats/kdedimmer/archive/v1.1.0.tar.gz
-	sha256sums = SKIP
+	sha256sums = 163e4f0a1d5353c042cc81642af558d7f2e7ebb26b3d0506ba45d9133e3f49aa
 
 pkgname = kdedimmer
