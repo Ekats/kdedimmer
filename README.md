@@ -28,6 +28,11 @@ Debian/Ubuntu:
 sudo apt install qt6-base-dev qt6-base-private-dev qt6-wayland-dev liblayershellqtinterface-dev libkf6statusnotifieritem-dev libwayland-dev cmake
 ```
 
+Fedora:
+```bash
+sudo dnf install cmake gcc-c++ qt6-qtbase-devel qt6-qtbase-private-devel qt6-qtwayland-devel layer-shell-qt-devel kf6-kstatusnotifieritem-devel wayland-devel
+```
+
 ## Installation
 
 ### From AUR (Arch Linux)
