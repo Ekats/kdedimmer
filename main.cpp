@@ -1,3 +1,5 @@
+#include <QKeyEvent>
+#include <QEvent>
 #include <QApplication>
 #include <QWidget>
 #include <QPainter>
@@ -118,6 +120,10 @@ public:
         layout->addWidget(new QLabel("Dim:"));
         layout->addWidget(m_slider);
         layout->addWidget(m_valueLabel);
+
+        m_leaveTimer.setSingleShot(true);
+        m_leaveTimer.setInterval(3000);   // ms, auto-hide if the mouse isn't over the popup
+        connect(&m_leaveTimer, &QTimer::timeout, this, &QWidget::hide);
     }
 
     void showOnScreen(const QPoint &pos) {
@@ -140,6 +146,8 @@ public:
         } else {
             show();
             raise();
+            activateWindow();
+            m_leaveTimer.start();
         }
     }
 
@@ -157,6 +165,33 @@ protected:
             hide();
         }
         QWidget::mousePressEvent(event);
+    }
+
+    void changeEvent(QEvent *e) override {
+        // Hide when the popup loses focus (click outside)
+        if (e->type() == QEvent::ActivationChange && isVisible() && !isActiveWindow())
+            hide();
+        QWidget::changeEvent(e);
+    }
+
+    void enterEvent(QEnterEvent *e) override {
+        m_leaveTimer.stop();
+        QWidget::enterEvent(e);
+    }
+
+    void leaveEvent(QEvent *e) override {
+        m_leaveTimer.start();
+        QWidget::leaveEvent(e);
+    }
+
+    void keyPressEvent(QKeyEvent *e) override {
+        if (e->key() == Qt::Key_Escape) hide();
+        else QWidget::keyPressEvent(e);
+    }
+
+    void hideEvent(QHideEvent *e) override {
+        m_leaveTimer.stop();
+        QWidget::hideEvent(e);
     }
 
 private:
@@ -180,6 +215,7 @@ private:
     QSlider *m_slider;
     QLabel *m_valueLabel;
     QScreen *m_screen = nullptr;
+    QTimer m_leaveTimer;
 };
 
 class TrayController : public QObject {
